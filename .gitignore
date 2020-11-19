@@ -3,3 +3,7 @@ a.out
 *.so
 *.dll
 *.exe
+
+build/
+
+*.mod
