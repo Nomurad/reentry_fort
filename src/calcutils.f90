@@ -1,10 +1,7 @@
 module mod_calcutil
     use, intrinsic :: iso_fortran_env 
     implicit none 
-    private
     real(real64), parameter :: pi = 4.0d0*atan(1.0d0)
-
-    public :: get_pi, deg2rad, rad2deg, rot_matrix
 
     contains
 
@@ -54,6 +51,17 @@ module mod_calcutil
         end if
 
     end function rot_matrix
+
+    real(real64) function norm(vec) result(res)
+        real(real64), intent(in) :: vec(3)
+        integer i 
+        real(real64) tmp(3)
+
+        tmp = [(vec(i)**2, i=1,3)]
+        print *, tmp 
+        res = sqrt(sum(tmp))
+
+    end function norm
         
 
 end module mod_calcutil
@@ -75,14 +83,8 @@ program debug
 
     write(*, "(100f10.5)") matmul(v, a)
     write(*, "(100f10.5)") a
-    
-    b = reshape([1,2,3,4,5,6,7,8,9,10,11,12], shape(b))
-    print *
-    write(*, "(100f10.5)") b
-    print *
-    do i = 1, 4
-        write(*,"(100f10.5)") b(i,:)
-    end do
+
+    print *, norm([1d0,1d0,0d0])
 
 end program
 #endif 
