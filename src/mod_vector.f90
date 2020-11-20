@@ -3,7 +3,7 @@ module mod_vector
     implicit none 
     private
 
-    type t_Vector
+    type, public :: t_Vector
         integer :: ndim = 3
         real(real64), pointer, public:: vec(:) => null()
         
@@ -16,8 +16,6 @@ module mod_vector
             generic :: operator(+) => add
             generic :: write(formatted) => formatted_write 
     end type t_Vector
-
-    public :: t_Vector
 
     interface t_Vector 
         module procedure init_vec1, init_vec2
