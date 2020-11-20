@@ -1,8 +1,6 @@
-module mod_reentry_calc
+module mod_reentry_params
     use, intrinsic :: iso_fortran_env
-    use mod_calcutil
-    use mod_vector
-    implicit none 
+    implicit none
     private
     real(real64), parameter :: rho0         = 1.225d0  ! kg/m^3
     real(real64), parameter :: Scale_height = 7.163d0  ! kk
@@ -19,10 +17,88 @@ module mod_reentry_calc
         real(real64) :: mu           = mu
         real(real64) :: omg_e        = omg_e
     end type reentry_parameters
-    type(reentry_parameters), public :: reentry_params
+    type(reentry_parameters), protected, public :: reentry_params
     
 
+end module mod_reentry_params
+
+
+module mod_reentry_calc
+    use, intrinsic :: iso_fortran_env
+    use mod_calcutil
+    use mod_vector
+    use mod_reentry_params
+    implicit none
+
+    type t_SpaceCraft
+        real(real64) weight
+    end type t_SpaceCraft
+
+    type t_ReentryCalc
+        real(real64) :: height = 0d0
+        real(real64) :: r = 0d0
+        real(real64) :: V = 0d0
+        real(real64) :: dV = 0d0
+
+        real(real64) :: theta = 0d0
+        real(real64) :: phi = 0d0
+        real(real64) :: gamma = 0d0
+        real(real64) :: d_gamma = 0d0
+        real(real64) :: psi = 0d0
+        real(real64) :: d_kai = 0d0
+        real(real64) :: alpha = 0d0
+        real(real64) :: d_alpha = 0d0
+        real(real64) :: delta = 0d0
+        real(real64) :: d_delta = 0d0
+
+        type(t_Vector) r_vec
+        type(t_Vector) V_vec
+        type(t_Vector) dV_vec
+
+        contains
+            procedure, public :: atmos_density
+    end type
+
+    interface t_ReentryCalc
+        module procedure init
+    end interface
+
     contains
+    type(t_ReentryCalc) function init(craft) result(res)
+        class(t_SpaceCraft), intent(in) :: craft
+
+       
+    end function init
+
+    real(real64) function atmos_density(this, h) result(res)
+        class(t_ReentryCalc), intent(in) :: this
+        real(real64), intent(in) :: h 
+        res = reentry_params%rho0 * exp(-h/reentry_params%Scale_height)
+
+    end function atmos_density
+
+    real(real64) function gravity(this, r) result(res)
+        class(t_ReentryCalc), intent(in) :: this
+        real(real64), intent(in) :: r
+        res = reentry_params%mu / (r**2)
+
+    end function gravity
+
+    subroutine set_r_vec_arr(this, r_vec)
+        class(t_ReentryCalc), intent(inout) :: this
+        real(real64), intent(in) :: r_vec(3)
+        real(real64) x, y, z 
+        
+        x = r_vec(1)
+        y = r_vec(2)
+        z = r_vec(3)
+        this%r = norm(r_vec) 
+        this%theta = atan2(y, x)
+        if(this%theta < 0d0) then
+            this%theta = 2*pi + this%theta
+        end if
+
+    end subroutine set_r_vec_arr
 
 end module mod_reentry_calc
 
@@ -36,7 +112,6 @@ program debug
     real(real64) :: a(3,3), b(4,3)
     integer :: i, j
     
-    reentry_params%rho0 = 0d0
     print *, reentry_params
 end program
 #endif 
