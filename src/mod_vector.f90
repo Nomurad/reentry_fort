@@ -129,30 +129,3 @@ module mod_vector
 
 end module mod_vector
 
-#ifdef _debug
-program debug
-    use, intrinsic :: iso_fortran_env
-    use mod_vector 
-    implicit none
-    real(real64) :: x, y, z
-    type(t_Vector) :: vec, vec1, vec2
-    integer :: i, j
-    real(real64) :: a(3, 2) 
-
-    x = 1d0
-    y = 2d0
-    z = 3d0
-
-    vec1 = t_Vector(x, y, z=z)
-    vec2 = t_Vector(y, x, z=z)
-    vec = vec1 + vec2
-    
-    write(6, *) vec1
-    write(6, *) vec2
-    write(6, *) vec
-
-    print *, "dot product =", vec1%dot_product(vec2)
-    print *, "corss product =", vec1%cross_product(vec2)
-
-end program 
-#endif

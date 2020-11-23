@@ -13,8 +13,9 @@ add_compile_options(
     )
 
 add_executable( ${EXEC}
-    #${CMAKE_SOURCE_DIR}/src/mod_vector.f90
-    ${CMAKE_SOURCE_DIR}/src/calcutils.f90
-    #${CMAKE_SOURCE_DIR}/src/reentry_calc.f90
+	${CMAKE_SOURCE_DIR}/src/mod_vector.f90
+	${CMAKE_SOURCE_DIR}/src/calcutils.f90
+    ${CMAKE_SOURCE_DIR}/src/reentry_calc.f90
+    ${CMAKE_SOURCE_DIR}/src/for_test.f90
     )
 

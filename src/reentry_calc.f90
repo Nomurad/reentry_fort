@@ -18,7 +18,6 @@ module mod_reentry_params
         real(real64) :: omg_e        = omg_e
     end type reentry_parameters
     type(reentry_parameters), protected, public :: reentry_params
-    
 
 end module mod_reentry_params
 
@@ -57,6 +56,9 @@ module mod_reentry_calc
 
         contains
             procedure, public :: atmos_density
+            procedure :: set_r_vec_arr
+            procedure :: set_r_vec_vector
+            generic :: set_r_vec => set_r_vec_arr, set_r_vec_vector 
     end type
 
     interface t_ReentryCalc
@@ -98,20 +100,30 @@ module mod_reentry_calc
             this%theta = 2*pi + this%theta
         end if
 
+        this%phi = acos(norm([x,y,0])/this%r) 
+
     end subroutine set_r_vec_arr
+
+    subroutine set_r_vec_vector(this, r_vec)
+        class(t_ReentryCalc), intent(inout) :: this
+        class(t_Vector), intent(in) :: r_vec
+        real(real64) x, y, z 
+        
+        x = r_vec%vec(1)
+        y = r_vec%vec(2)
+        z = r_vec%vec(3)
+        this%r = norm(r_vec%vec) 
+        this%theta = atan2(y, x)
+        if(this%theta < 0d0) then
+            this%theta = 2*pi + this%theta
+        end if
+
+        this%phi = acos(norm([x,y])/this%r) 
+
+    end subroutine set_r_vec_vector
+
+    subroutine set_v_vec_arr(
 
 end module mod_reentry_calc
 
 
-#ifdef _debug
-program debug
-    use, intrinsic :: iso_fortran_env 
-    use mod_reentry_calc 
-    implicit none 
-    real(real64) :: v(3)
-    real(real64) :: a(3,3), b(4,3)
-    integer :: i, j
-    
-    print *, reentry_params
-end program
-#endif 

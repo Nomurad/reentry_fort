@@ -53,11 +53,11 @@ module mod_calcutil
     end function rot_matrix
 
     real(real64) function norm(vec) result(res)
-        real(real64), intent(in) :: vec(3)
+        real(real64), intent(in) :: vec(:)
         integer i 
-        real(real64) tmp(3)
+        real(real64) tmp(:)
 
-        tmp = [(vec(i)**2, i=1,3)]
+        tmp = [(vec(i)**2, i=1,size(vec)]
         print *, tmp 
         res = sqrt(sum(tmp))
 
@@ -66,25 +66,3 @@ module mod_calcutil
 
 end module mod_calcutil
 
-
-#ifdef _debug
-program debug
-    use, intrinsic :: iso_fortran_env 
-    use mod_calcutil 
-    implicit none 
-    real(real64) :: v(3)
-    real(real64) :: a(3,3), b(4,3)
-    integer :: i, j
-    
-    a = rot_matrix(deg2rad(45d0), 3)
-    v = [sqrt(2d0), 0d0, 0d0]
-
-    write(*,*) sin(deg2rad(30d0))
-
-    write(*, "(100f10.5)") matmul(v, a)
-    write(*, "(100f10.5)") a
-
-    print *, norm([1d0,1d0,0d0])
-
-end program
-#endif 
