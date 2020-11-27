@@ -1,7 +1,13 @@
 module mod_calcutil
     use, intrinsic :: iso_fortran_env 
+    use mod_vector
     implicit none 
     real(real64), parameter :: pi = 4.0d0*atan(1.0d0)
+
+    interface norm
+        module procedure norm_arr 
+        module procedure norm_vec 
+    end interface 
 
     contains
 
@@ -52,17 +58,24 @@ module mod_calcutil
 
     end function rot_matrix
 
-    real(real64) function norm(vec) result(res)
+    real(real64) function norm_arr(vec) result(res)
         real(real64), intent(in) :: vec(:)
-        integer i 
-        real(real64) tmp(:)
 
-        tmp = [(vec(i)**2, i=1,size(vec)]
-        print *, tmp 
+        integer i 
+        real(real64), allocatable :: tmp(:)
+
+        tmp = [( vec(i)**2, i=1,size(vec) )]
+        ! print *, tmp 
         res = sqrt(sum(tmp))
 
-    end function norm
+    end function norm_arr
+
+    real(real64) function norm_vec(vector) result(res)
+        type(t_Vector), intent(in) :: vector
         
+        res = norm_arr(vector%vec)
+
+    end function norm_vec
 
 end module mod_calcutil
 
