@@ -5,5 +5,6 @@ a.out
 *.exe
 
 build/
+.vscode/
 
 *.mod

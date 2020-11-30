@@ -37,7 +37,7 @@ module mod_spacecraft
         real(real64) :: ballistic
         contains
             procedure, public :: set_ballistic 
-    end type
+    end type t_SpaceCraft
 
     interface t_SpaceCraft 
         module procedure init_craft
@@ -406,7 +406,7 @@ module mod_reentry_calc
             integer iter_max, i
             real(real64) dt
             real(real64) dummy
-            type(t_Vector) k(4), l(4)
+            ! type(t_Vector) k(4), l(4)
             real(real64) r_k(4), theta_k(4), phi_k(4)
             real(real64) r_l(4), theta_l(4), phi_l(4)
 
@@ -423,7 +423,7 @@ module mod_reentry_calc
             this%theta = theta
             this%phi   = phi
 
-            forall(i = 1:4) k(i) = t_Vector(3)
+            ! forall(i = 1:4) k(i) = t_Vector(3)
             
             r_dot      = this%diff_r()
             theta_dot  = this%diff_theta()
@@ -474,16 +474,16 @@ module mod_reentry_calc
                 theta_l(4) = this%diff2_theta(r_dot+r_k(3), theta_dot+theta_k(3), phi_dot+phi_k(3))
                 phi_l(4)   = this%diff2_phi(r_dot+r_k(3), theta_dot+theta_k(3), phi_dot+phi_k(3))
 
-                r     = r     + dt*(r_k(1) + 2d0*r_k(2) + 2d0*r_k(3) + r_k(4))/6d0
-                theta = theta + dt*(theta_k(1) + 2d0*theta_k(2) + 2d0*theta_k(3) + theta_k(4))/6d0
-                phi   = phi   + dt*(phi_k(1) + 2d0*phi_k(2) + 2d0*phi_k(3) + phi_k(4))/6d0
+                r         = r     + dt*(r_k(1) + 2d0*r_k(2) + 2d0*r_k(3) + r_k(4))/6d0
+                theta     = theta + dt*(theta_k(1) + 2d0*theta_k(2) + 2d0*theta_k(3) + theta_k(4))/6d0
+                phi       = phi   + dt*(phi_k(1) + 2d0*phi_k(2) + 2d0*phi_k(3) + phi_k(4))/6d0
                 r_dot     = r_dot     + dt*(r_l(1) + 2d0*r_l(2) + 2d0*r_l(3) + r_l(4))/6d0
                 theta_dot = theta_dot + dt*(theta_l(1) + 2d0*theta_l(2) + 2d0*theta_l(3) + theta_l(4))/6d0
                 phi_dot   = phi_dot   + dt*(phi_l(1) + 2d0*phi_l(2) + 2d0*phi_l(3) + phi_l(4))/6d0
 
-                this%r = r 
-                this%theta = theta 
-                this%phi = phi 
+                this%r     = r
+                this%theta = theta
+                this%phi   = phi
                 call this%set_v_vec([r_dot, r*theta_dot, r*phi_dot])
                 ! this%V = norm([r_dot, r*theta_dot, r*phi_dot])
                 ! this%V = norm(this%V_vec)
