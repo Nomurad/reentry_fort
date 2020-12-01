@@ -137,10 +137,12 @@ module mod_reentry_calc
             procedure, public :: atmos_density, gravity
             procedure :: set_r_vec_arr, set_r_vec_vector
             procedure :: set_v_vec_arr, set_v_vec_vector
+            procedure :: add_v_scalar, add_v_vec
             procedure :: calc_Lift, calc_Drag
             procedure :: diff_r, diff_phi, diff_theta
             procedure :: diff2_r, diff2_theta, diff2_phi
             procedure :: trj_calc_3d
+            generic, public :: add_v => add_v_scalar, add_v_vec
             generic, public :: set_r_vec => set_r_vec_arr, set_r_vec_vector 
             generic, public :: set_v_vec => set_v_vec_arr, set_v_vec_vector 
     end type t_ReentryCalc
@@ -203,10 +205,13 @@ module mod_reentry_calc
             this%posi = this%craft%posi  ! vecのpointerは同じ場所を指す
         end function init
 
-        real(real64) function atmos_density(this, h) result(res)
+        real(real64) function atmos_density(this, h) result(rho)
             class(t_ReentryCalc), intent(in) :: this
             real(real64), intent(in) :: h 
-            res = reentry_params%rho0 * exp(-h/reentry_params%Scale_height)
+
+            if(h > 120d0) return
+            
+            rho = reentry_params%rho0 * exp(-h/reentry_params%Scale_height)
 
         end function atmos_density
 
@@ -241,16 +246,6 @@ module mod_reentry_calc
             ! real(real64) x, y, z 
             
             call this%set_r_vec_arr(r_vec%vec)
-            ! x = r_vec%vec(1)
-            ! y = r_vec%vec(2)
-            ! z = r_vec%vec(3)
-            ! this%r = norm(r_vec%vec) 
-            ! this%theta = atan2(y, x)
-            ! if(this%theta < 0d0) then
-            !     this%theta = 2*pi + this%theta
-            ! end if
-
-            ! this%phi = acos(norm([x,y])/this%r) 
 
         end subroutine set_r_vec_vector
 
@@ -285,6 +280,28 @@ module mod_reentry_calc
 
         end subroutine set_v_vec_vector 
 
+        subroutine add_v_scalar(this, v_scalar)
+            class(t_ReentryCalc), intent(inout) :: this 
+            real(real64), target, intent(in) :: v_scalar
+            ! real(real64), pointer :: x, y, z
+            ! integer i
+            real(real64) dummy
+
+            this%V = this%V + v_scalar
+            dummy = diff_r(this)
+            dummy = diff_theta(this)
+            dummy = diff_phi(this)
+
+        end subroutine
+
+        subroutine add_v_vec(this, v_vec)
+            class(t_ReentryCalc), intent(inout) :: this 
+            real(real64), target, intent(in) :: v_vec(3) 
+            real(real64), pointer :: x, y, z 
+            integer i
+
+        end subroutine
+
         real(real64) function calc_Lift(this, rho) result(Lift)
             class(t_ReentryCalc), intent(inout) :: this
             real(real64), intent(in) :: rho 
@@ -316,23 +333,31 @@ module mod_reentry_calc
             diff_r = this%V * sin(this%gamma)
         end function diff_r
 
-        real(real64) function diff_phi(this) 
-            class(t_ReentryCalc), intent(inout) :: this
-            diff_phi = (this%V/this%r) * cos(this%gamma) * sin(this%psi)
-        end function diff_phi
-
-
         real(real64) function diff_theta(this) 
             class(t_ReentryCalc), intent(inout) :: this
             diff_theta = this%V * cos(this%gamma) * cos(this%psi) / this%r
         end function diff_theta
 
-
-        real(real64) function diff2_r(this, theta_dot, phi_dot) 
+        real(real64) function diff_phi(this) 
             class(t_ReentryCalc), intent(inout) :: this
-            real(real64), intent(in) :: theta_dot, phi_dot
+            diff_phi = (this%V/this%r) * cos(this%gamma) * sin(this%psi)
+        end function diff_phi
+
+        real(real64) function diff2_r(this, dots, F_thrust) 
+            class(t_ReentryCalc), intent(inout) :: this
+            real(real64), intent(in) :: dots(3)
+            real(real64), optional, value :: F_thrust
+            real(real64) r_dot, theta_dot, phi_dot
             real(real64) r, phi, L, D, m, gamma_, delta, omg_e, g 
-            real(real64) F_r
+            real(real64) F_r, F_t
+            logical is_exist_thrust
+
+            is_exist_thrust = (present(F_thrust))
+            if(.not. is_exist_thrust) F_thrust = 0d0
+
+            r_dot     = dots(1)
+            theta_dot = dots(2)
+            phi_dot   = dots(3)
 
             r      = this%r
             phi    = this%phi
@@ -344,16 +369,26 @@ module mod_reentry_calc
             omg_e  = reentry_params%omg_e
             g      = this%gravity(r)
             
-            F_r = (L/m)*cos(delta)*cos(gamma_) - (D/m)*sin(gamma_)
+            F_r     = (L/m)*cos(delta)*cos(gamma_) - (D/m)*sin(gamma_) + F_thrust
             diff2_r = r*omg_e*(cos(phi)**2)*(2*theta_dot + omg_e) + F_r - g
 
         end function diff2_r
 
-        real(real64) function diff2_theta(this, r_dot, theta_dot, phi_dot) 
+        real(real64) function diff2_theta(this, dots, F_thrust) 
             class(t_ReentryCalc), intent(inout) :: this
-            real(real64), intent(in) :: r_dot, theta_dot, phi_dot
+            real(real64), intent(in) :: dots(3)
+            real(real64) r_dot, theta_dot, phi_dot
+            real(real64), optional, value :: F_thrust
             real(real64) r, phi, L, D, m, gamma_, psi, delta, omg_e, g 
             real(real64) F_theta
+            logical is_exist_thrust
+
+            is_exist_thrust = (present(F_thrust))
+            if(is_exist_thrust .eqv. .false.) F_thrust = 0d0
+
+            r_dot     = dots(1)
+            theta_dot = dots(2)
+            phi_dot   = dots(3)
 
             r      = this%r
             phi    = this%phi
@@ -366,17 +401,27 @@ module mod_reentry_calc
             omg_e  = reentry_params%omg_e
             !g     = this%gravity(r)
             
-            F_theta = (L/m)*sin(delta)*sin(psi) - ((L/m)*cos(delta)*sin(gamma_) + (D/m)*cos(gamma_))*cos(psi)
-            diff2_theta = (theta_dot + 2*omg_e)*(r*phi_dot*sin(phi) - r_dot*cos(phi)) + F_theta
+            F_theta     = (L/m)*sin(delta)*sin(psi) - ((L/m)*cos(delta)*sin(gamma_) + (D/m)*cos(gamma_))*cos(psi)
+            diff2_theta = (theta_dot + 2*omg_e)*(r*phi_dot*sin(phi) - r_dot*cos(phi)) + F_theta + F_thrust
             diff2_theta = diff2_theta/(r*cos(phi))
 
         end function diff2_theta
 
-        real(real64) function diff2_phi(this, r_dot, theta_dot, phi_dot) 
+        real(real64) function diff2_phi(this, dots, F_thrust) 
             class(t_ReentryCalc), intent(inout) :: this
-            real(real64), intent(in) :: r_dot, theta_dot, phi_dot
+            real(real64), intent(in) :: dots(3)
+            real(real64) r_dot, theta_dot, phi_dot
+            real(real64), optional, value :: F_thrust
             real(real64) r, phi, L, D, m, gamma_, psi, delta, omg_e, g 
             real(real64) F_phi
+            logical is_exist_thrust
+
+            is_exist_thrust = (present(F_thrust))
+            if(is_exist_thrust .eqv. .false.) F_thrust = 0d0
+
+            r_dot     = dots(1)
+            theta_dot = dots(2)
+            phi_dot   = dots(3)
 
             r      = this%r
             phi    = this%phi
@@ -389,23 +434,28 @@ module mod_reentry_calc
             omg_e  = reentry_params%omg_e
             !g     = this%gravity(r)
             
-            F_phi = -(L/m)*sin(delta)*cos(psi) - ((L/m)*cos(delta)*sin(gamma_) + (D/m)*cos(gamma_))*sin(psi)
-            diff2_phi = -(r*omg_e*sin(phi)*cos(phi))*(omg_e + 2*theta_dot) - r_dot*phi_dot + F_phi
+            F_phi     = -(L/m)*sin(delta)*cos(psi) - ((L/m)*cos(delta)*sin(gamma_) + (D/m)*cos(gamma_))*sin(psi)
+            diff2_phi = -(r*omg_e*sin(phi)*cos(phi))*(omg_e + 2*theta_dot) - r_dot*phi_dot + F_phi + F_thrust
             diff2_phi = diff2_phi/r
 
         end function diff2_phi
 
-        subroutine trj_calc_3d(this, x0, t, res)
+        subroutine trj_calc_3d(this, x0, t, F_t, res)
             class(t_ReentryCalc), target, intent(inout) :: this
             real(real64), intent(in) :: x0(3), t(:)
+            ! real(real64), intent(in) :: dv_s(:)
+            real(real64), intent(in) :: F_t(:, :)
             type(trj_results), intent(out) :: res
             real(real64) r0, theta0, phi0
             real(real64) r, theta, phi
             real(real64) r_dot, theta_dot, phi_dot
+            real(real64) dots(3)
             real(real64) rho, r_earth
             integer iter_max, i
             real(real64) dt
             real(real64) dummy
+            real(real64) F(3)
+            real(real64), allocatable :: F_t2(:, :)
             ! type(t_Vector) k(4), l(4)
             real(real64) r_k(4), theta_k(4), phi_k(4)
             real(real64) r_l(4), theta_l(4), phi_l(4)
@@ -433,12 +483,20 @@ module mod_reentry_calc
             rho = this%atmos_density(r0 - r_earth)
 
             iter_max = size(t)
+            ! allocate(F_t2(3, iter_max), source=0d0)
+            ! F_t2 = F_t
+            ! F = [-1.0d-3, 0.0d0, 0.0d0]
+            ! F_t2(1,:) = F(1)
+            ! F_t2(2,:) = F(2)/this%r
+            ! F_t2(3,:) = F(3)/this%r
+            
             this%results = trj_results(iter_max)
             dt = t(2) - t(1)
 
-            print *, i, r-reentry_params%r_earth
-            print *, r_dot, r*theta_dot
+            ! print *, i, r-reentry_params%r_earth
+            ! print *, r_dot, r*theta_dot
             do i = 1, iter_max
+                ! call this%add_v(dv_s(i))
                 rho       = this%atmos_density(r - r_earth)
                 dummy     = this%calc_Drag(rho)
                 dummy     = this%calc_Lift(rho)
@@ -446,33 +504,37 @@ module mod_reentry_calc
                 theta_dot = this%diff_theta()
                 phi_dot   = this%diff_phi()
                 
+                dots       = [r_dot, theta_dot, phi_dot]
                 r_k(1)     = r_dot 
                 theta_k(1) = theta_dot 
                 phi_k(1)   = phi_dot 
-                r_l(1)     = this%diff2_r(theta_dot, phi_dot)
-                theta_l(1) = this%diff2_theta(r_dot, theta_dot, phi_dot)
-                phi_l(1)   = this%diff2_phi(r_dot, theta_dot, phi_dot)
+                r_l(1)     = this%diff2_r(dots, F_t(1,i))
+                theta_l(1) = this%diff2_theta(dots, F_t(2,i))
+                phi_l(1)   = this%diff2_phi(dots, F_t(3,i))
 
+                dots       = [r_dot+(r_k(1)/2d0), theta_dot+(theta_k(1)/2d0), phi_dot+(phi_k(1)/2d0)]
                 r_k(2)     = r_dot     + r_l(1)/2d0
                 theta_k(2) = theta_dot + theta_l(1)/2d0
                 phi_k(2)   = phi_dot   + phi_l(1)/2d0
-                r_l(2)     = this%diff2_r(theta_dot+(theta_k(1)/2d0), phi_dot+(phi_k(1)/2d0))
-                theta_l(2) = this%diff2_theta(r_dot+(r_k(1)/2d0), theta_dot+(theta_k(1)/2d0), phi_dot+(phi_k(1)/2d0))
-                phi_l(2)   = this%diff2_phi(r_dot+(r_k(1)/2d0), theta_dot+(theta_k(1)/2d0), phi_dot+(phi_k(1)/2d0))
+                r_l(2)     = this%diff2_r(dots, F_t(1,i))
+                theta_l(2) = this%diff2_theta(dots, F_t(2,i))
+                phi_l(2)   = this%diff2_phi(dots, F_t(3,i))
 
+                dots       = [r_dot+(r_k(2)/2d0), theta_dot+(theta_k(2)/2d0), phi_dot+(phi_k(2)/2d0)]
                 r_k(3)     = r_dot     + r_l(2)/2d0
                 theta_k(3) = theta_dot + theta_l(2)/2d0
                 phi_k(3)   = phi_dot   + phi_l(2)/2d0
-                r_l(3)     = this%diff2_r(theta_dot+(theta_k(2)/2d0), phi_dot+(phi_k(2)/2d0))
-                theta_l(3) = this%diff2_theta(r_dot+(r_k(2)/2d0), theta_dot+(theta_k(2)/2d0), phi_dot+(phi_k(2)/2d0))
-                phi_l(3)   = this%diff2_phi(r_dot+(r_k(2)/2d0), theta_dot+(theta_k(2)/2d0), phi_dot+(phi_k(2)/2d0))
+                r_l(3)     = this%diff2_r(dots, F_t(1,i))
+                theta_l(3) = this%diff2_theta(dots, F_t(2,i))
+                phi_l(3)   = this%diff2_phi(dots, F_t(3,i))
 
+                dots       = [r_dot+r_k(3), theta_dot+theta_k(3), phi_dot+phi_k(3)]
                 r_k(4)     = r_dot     + r_l(3)
                 theta_k(4) = theta_dot + theta_l(3)
                 phi_k(4)   = phi_dot   + phi_l(3)
-                r_l(4)     = this%diff2_r(theta_dot+theta_k(3), phi_dot+phi_k(3))
-                theta_l(4) = this%diff2_theta(r_dot+r_k(3), theta_dot+theta_k(3), phi_dot+phi_k(3))
-                phi_l(4)   = this%diff2_phi(r_dot+r_k(3), theta_dot+theta_k(3), phi_dot+phi_k(3))
+                r_l(4)     = this%diff2_r(dots, F_t(1,i))
+                theta_l(4) = this%diff2_theta(dots, F_t(2,i))
+                phi_l(4)   = this%diff2_phi(dots, F_t(3,i))
 
                 r         = r     + dt*(r_k(1) + 2d0*r_k(2) + 2d0*r_k(3) + r_k(4))/6d0
                 theta     = theta + dt*(theta_k(1) + 2d0*theta_k(2) + 2d0*theta_k(3) + theta_k(4))/6d0
@@ -487,10 +549,11 @@ module mod_reentry_calc
                 call this%set_v_vec([r_dot, r*theta_dot, r*phi_dot])
                 ! this%V = norm([r_dot, r*theta_dot, r*phi_dot])
                 ! this%V = norm(this%V_vec)
-                this%psi = atan((r*phi_dot)/(r*theta_dot))
+                this%psi   = atan((r*phi_dot)/(r*theta_dot))
                 this%gamma = atan(r_dot / norm([(r*phi_dot), (r*theta_dot)]))
 
                 ! write(*,"(i7,f15.8,a)", advance="no") i, r-reentry_params%r_earth, achar(z"0d")
+                write(*,"(i7,10f15.8)") i, r-reentry_params%r_earth, this%V, F_t(:,i)
 
                 if(r <= reentry_params%r_earth) then 
                     print "('r=', f10.3, ' / iter: ', i10)", r, i 
@@ -518,7 +581,7 @@ module mod_reentry_calc
                 this%results%phi_dot_hist(i)   = phi_dot
 
             end do
-            if(i .eq. iter_max) print *, "landing failed..."
+            if(i >= iter_max) print *, "landing failed..."
             res = this%results
 
         end subroutine trj_calc_3d
