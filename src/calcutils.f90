@@ -11,6 +11,19 @@ module mod_calcutil
 
     contains
 
+    ! function optval_setting(optval, default) result(res)
+    !     integer, intent(in) :: optval
+    !     integer, intent(in) :: default
+    !     integer res
+
+    !     if((optval)) then
+    !         res = optval
+    !     else
+    !         res = default
+    !     end if
+
+    ! end function
+
     real(real64) function get_pi() result(res)
         res = pi 
     end function get_pi
