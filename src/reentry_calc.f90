@@ -190,7 +190,9 @@ module mod_reentry_calc
             this%V_vec = t_Vector(3)
             this%dV_vec = t_Vector(3)
             
-            this%r = reentry_params%r_earth + this%height 
+            this%r_vec = craft%posi 
+            ! this%r = reentry_params%r_earth + this%height 
+            this%r = norm(this%r_vec) 
             this%V = norm(this%V_vec)
             this%dV = norm(this%dV_vec)
             this%theta = 0d0
@@ -218,7 +220,10 @@ module mod_reentry_calc
         real(real64) function gravity(this, r) result(res)
             class(t_ReentryCalc), intent(in) :: this
             real(real64), intent(in) :: r
+
+            ! if(r-reentry_params%r_earth > 120d0) return
             res = reentry_params%mu / (r**2)
+            ! print *, "g = ", res
 
         end function gravity
 
@@ -369,7 +374,7 @@ module mod_reentry_calc
             omg_e  = reentry_params%omg_e
             g      = this%gravity(r)
             
-            F_r     = (L/m)*cos(delta)*cos(gamma_) - (D/m)*sin(gamma_) + F_thrust
+            F_r     = (L/m)*cos(delta)*cos(gamma_) - (D/m)*sin(gamma_) + F_thrust/m
             diff2_r = r*omg_e*(cos(phi)**2)*(2*theta_dot + omg_e) + F_r - g
 
         end function diff2_r
@@ -402,7 +407,7 @@ module mod_reentry_calc
             !g     = this%gravity(r)
             
             F_theta     = (L/m)*sin(delta)*sin(psi) - ((L/m)*cos(delta)*sin(gamma_) + (D/m)*cos(gamma_))*cos(psi)
-            diff2_theta = (theta_dot + 2*omg_e)*(r*phi_dot*sin(phi) - r_dot*cos(phi)) + F_theta + F_thrust
+            diff2_theta = (theta_dot + 2*omg_e)*(r*phi_dot*sin(phi) - r_dot*cos(phi)) + F_theta + F_thrust/m
             diff2_theta = diff2_theta/(r*cos(phi))
 
         end function diff2_theta
@@ -435,7 +440,7 @@ module mod_reentry_calc
             !g     = this%gravity(r)
             
             F_phi     = -(L/m)*sin(delta)*cos(psi) - ((L/m)*cos(delta)*sin(gamma_) + (D/m)*cos(gamma_))*sin(psi)
-            diff2_phi = -(r*omg_e*sin(phi)*cos(phi))*(omg_e + 2*theta_dot) - r_dot*phi_dot + F_phi + F_thrust
+            diff2_phi = -(r*omg_e*sin(phi)*cos(phi))*(omg_e + 2*theta_dot) - r_dot*phi_dot + F_phi + F_thrust/m
             diff2_phi = diff2_phi/r
 
         end function diff2_phi
@@ -553,10 +558,10 @@ module mod_reentry_calc
                 this%gamma = atan(r_dot / norm([(r*phi_dot), (r*theta_dot)]))
 
                 ! write(*,"(i7,f15.8,a)", advance="no") i, r-reentry_params%r_earth, achar(z"0d")
-                write(*,"(i7,10f15.8)") i, r-reentry_params%r_earth, this%V, F_t(:,i)
+                ! write(*,"(i7,10f15.8)") i, r-reentry_params%r_earth, this%V, F_t(:,i)
 
                 if(r <= reentry_params%r_earth) then 
-                    print "('r=', f10.3, ' / iter: ', i10)", r, i 
+                    print "('r=', f15.3, ' / iter: ', i10)", r, i 
                     print *, "landing."
                     this%results%r_hist         =  this%results%r_hist(:i-1)
                     this%results%theta_hist     =  this%results%theta_hist(:i-1)

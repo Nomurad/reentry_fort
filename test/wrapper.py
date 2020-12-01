@@ -4,7 +4,7 @@ import numpy as np
 from scipy.io import FortranFile
 
 libname = "libfort.so"
-tsize = 100000
+tsize = 300000
 
 def call_fort(n, A: np.ndarray):
     # コメント
@@ -70,7 +70,9 @@ def call_reentry(posi, weight, ref_area, initV, gamma, psi, len_t, ts, F_t):
 
 
 if __name__ == "__main__":
-
+    import pandas as pd
+    from reentry_py import sattelite_trj_calc as sat
+    from reentry_py import calcutil as util
     # n = 3
     # A = np.array([[1,2,3],[4,5,6],[7,8,9]], dtype=np.float64)
     # f = FortranFile("input.dat", "w")
@@ -82,20 +84,36 @@ if __name__ == "__main__":
 
     # B = call_fort(n, (A))
 
-    posi = np.array([6378.0+400.0, 0.0, 0.0])
-    wei = 100.0
-    ref = np.pi
-    iniV = 7.74
+    deb    = sat.trj_calc_fromTLE(sat.l1, sat.l2)
+    pos    =  []
+    vs     = []
+    pos_2D = []
+    r0     = deb.get_position()
+    v0     = deb.get_velocity_vec()
+    rotmat = util.euler_angle([deb.raan, deb.inc, deb.AoP],[3,1,3])
+    rotmat_T = rotmat.T
+
+    # posi  = np.array([6378.0+400.0, 0.0, 0.0])
+    posi  = r0.copy()
+    wei   = 100.0
+    ref   = np.pi
+    iniR  = np.linalg.norm(posi)
+    iniV  = np.linalg.norm(v0)
+    iniR  = np.linalg.norm(r0)
+    iniV  = np.linalg.norm(v0)
+    gamma = np.pi/2.0 - np.arccos((r0.dot(v0))/(iniR*iniV))
     gamma = 0
-    psi = 0
-    dt = 1e-2
-    ts = np.arange(dt*tsize, step=dt)
-    F_t = np.zeros((3, tsize))
-    F_t[0,:] = 1e-12
-    F_t[1,:] = -1e0
+    psi   = deb.inc
+    dt    = 1e-2
+    ts    = np.arange(dt*tsize, step=dt)
+    F_t   = np.zeros((3, tsize))
+    F_t[0,:] = -1e-3
+    F_t[1,:] = 0e-5
     
     sttime = time.time()
     res = call_reentry(posi, wei, ref, iniV, gamma, psi, tsize, ts, F_t)
+    print("R(py) = ", iniR)
+    print("gamma=",util.rad2deg(gamma))
     print("calc trj time: ", time.time()-sttime)
 
     # print(res)
@@ -108,8 +126,11 @@ if __name__ == "__main__":
     sttime = time.time()
     f = FortranFile("trj_calc_rslt.dat",  "r")
     datsize = 0
-    dat = f.read_record(f"2f8")
+    dat = f.read_record(f"3f8")
     f.close()
+    pd.DataFrame(dat).to_csv("result.csv")
+    print("initial r = ", iniR)
+    print("last r = ",dat[-1,1] )
     print("read time: ",time.time()-sttime)
     print("landing time[s]: ", dat[-1, 0])
 

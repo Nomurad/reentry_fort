@@ -6,7 +6,7 @@ subroutine reentry_from_py(posi, weight, ref_area, initV, gamma, psi, tsize, ts,
     use mod_spacecraft
     use mod_reentry_calc
     implicit none 
-    real(real64), intent(in) :: posi, weight, ref_area
+    real(real64), intent(in) :: posi(3), weight, ref_area
     real(real64), intent(in) :: initV
     real(real64), intent(in) :: gamma, psi
     integer(c_int), intent(in) :: tsize
@@ -22,6 +22,7 @@ subroutine reentry_from_py(posi, weight, ref_area, initV, gamma, psi, tsize, ts,
     type(t_ReentryCalc) reentry 
     real(real64) dt
     integer i
+    real(real64) gravity
 
     print *, "start calc!"
     ! ress = 1d0
@@ -29,19 +30,29 @@ subroutine reentry_from_py(posi, weight, ref_area, initV, gamma, psi, tsize, ts,
     craft_vec%vec = posi
     craft = t_SpaceCraft(craft_vec, weight, ref_area)
     reentry = t_ReentryCalc(craft)
+    
+    gravity = reentry%gravity(reentry%r)
 
     reentry%V = initV
     reentry%gamma = gamma 
     reentry%psi = psi
     dt = ts(2) - ts(1)
+    print *, "----- fortran ------"
     print *, "dt =", dt
+    print *, "g = ", gravity, reentry%gravity(6378d0)
+    print *, "C_D = "
+    print *, "posi = ", craft%posi
+    print *, "posi = ", reentry%r_vec
+    print *, "R =", reentry%r
 
-    call reentry%trj_calc_3d([reentry_params%r_earth+400d0, 0d0, 0d0], ts, F_t, res)
+    ! call reentry%trj_calc_3d([reentry_params%r_earth+400d0, 0d0, 0d0], ts, F_t, res)
+    call reentry%trj_calc_3d(craft_vec%vec, ts, F_t, res)
     ! print *, "time:", size(res%r_hist)*dt, "[s]"
 
-    allocate(outputs(2, ubound(res%r_hist, dim=1)))
+    allocate(outputs(3, ubound(res%r_hist, dim=1)))
     outputs(1,:) = ts(:ubound(res%r_hist, dim=1)) 
     outputs(2,:) = res%r_hist 
+    outputs(3,:) = res%V_hist 
     open(20, file="trj_calc_rslt.dat", form="unformatted")
     write(20) outputs
     ! do i = 1, ubound(res%r_hist, dim=1)
