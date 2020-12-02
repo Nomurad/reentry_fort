@@ -1,6 +1,7 @@
 import time
 import ctypes
 import numpy as np
+import astropy.time as att
 from scipy.io import FortranFile
 
 libname = "libfort.so"
@@ -72,7 +73,10 @@ def call_reentry(posi, weight, ref_area, initV, gamma, psi, len_t, ts, F_t):
 if __name__ == "__main__":
     import pandas as pd
     from reentry_py import sattelite_trj_calc as sat
+    from reentry_py.calc_all_range import vel_eci2ecef
     from reentry_py import calcutil as util
+
+    tsize = 10**7
     # n = 3
     # A = np.array([[1,2,3],[4,5,6],[7,8,9]], dtype=np.float64)
     # f = FortranFile("input.dat", "w")
@@ -90,10 +94,14 @@ if __name__ == "__main__":
     pos_2D = []
     r0     = deb.get_position()
     v0     = deb.get_velocity_vec()
+    _pos   = list(r0*1000)
+    stdate = att.Time(deb.epoch, format="mjd")
+    r0     = np.array(sat.pm.eci2ecef(*_pos, stdate))/1000
+    v0     = vel_eci2ecef(v0, stdate)
     rotmat = util.euler_angle([deb.raan, deb.inc, deb.AoP],[3,1,3])
     rotmat_T = rotmat.T
 
-    # posi  = np.array([6378.0+400.0, 0.0, 0.0])
+    # posi  = np.array([-6637.45552308, 1418.74612805, 7.33199191])
     posi  = r0.copy()
     wei   = 100.0
     ref   = np.pi
@@ -102,18 +110,24 @@ if __name__ == "__main__":
     iniR  = np.linalg.norm(r0)
     iniV  = np.linalg.norm(v0)
     gamma = np.pi/2.0 - np.arccos((r0.dot(v0))/(iniR*iniV))
-    gamma = 0
+    # gamma = 0
+    print("r0 = ", posi, iniR)
+    print("v0 = ", v0, iniV)
+    print("gamma=",util.rad2deg(gamma))
+    # input()
     psi   = deb.inc
     dt    = 1e-2
     ts    = np.arange(dt*tsize, step=dt)
-    F_t   = np.zeros((3, tsize))
-    F_t[0,:] = -1e-3
-    F_t[1,:] = 0e-5
+    F_t   = np.zeros((tsize, 3))
+    F_t[:,0] = -0.001
+    F_t[:,1] = -0.01
+    # print(F_t)
     
     sttime = time.time()
     res = call_reentry(posi, wei, ref, iniV, gamma, psi, tsize, ts, F_t)
     print("R(py) = ", iniR)
     print("gamma=",util.rad2deg(gamma))
+    print("psi=",util.rad2deg(psi))
     print("calc trj time: ", time.time()-sttime)
 
     # print(res)

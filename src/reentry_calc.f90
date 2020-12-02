@@ -355,6 +355,7 @@ module mod_reentry_calc
             real(real64) r_dot, theta_dot, phi_dot
             real(real64) r, phi, L, D, m, gamma_, delta, omg_e, g 
             real(real64) F_r, F_t
+            real(real64) cosphi2
             logical is_exist_thrust
 
             is_exist_thrust = (present(F_thrust))
@@ -375,7 +376,8 @@ module mod_reentry_calc
             g      = this%gravity(r)
             
             F_r     = (L/m)*cos(delta)*cos(gamma_) - (D/m)*sin(gamma_) + F_thrust/m
-            diff2_r = r*omg_e*(cos(phi)**2)*(2*theta_dot + omg_e) + F_r - g
+            cosphi2 = cos(phi)**2
+            diff2_r = r*(phi_dot**2 + cosphi2*(theta_dot + omg_e)**2) + F_r - g
 
         end function diff2_r
 
@@ -386,6 +388,7 @@ module mod_reentry_calc
             real(real64), optional, value :: F_thrust
             real(real64) r, phi, L, D, m, gamma_, psi, delta, omg_e, g 
             real(real64) F_theta
+            real(real64) phi_dot2
             logical is_exist_thrust
 
             is_exist_thrust = (present(F_thrust))
@@ -405,9 +408,11 @@ module mod_reentry_calc
             delta  = this%delta
             omg_e  = reentry_params%omg_e
             !g     = this%gravity(r)
+            phi_dot2 = phi_dot**2
             
             F_theta     = (L/m)*sin(delta)*sin(psi) - ((L/m)*cos(delta)*sin(gamma_) + (D/m)*cos(gamma_))*cos(psi)
-            diff2_theta = (theta_dot + 2*omg_e)*(r*phi_dot*sin(phi) - r_dot*cos(phi)) + F_theta + F_thrust/m
+            diff2_theta = -2*r_dot*theta_dot*cos(phi) + 2*r*theta_dot*phi_dot*sin(phi) &
+                        & - 2*omg_e*(r_dot*cos(phi)-r_dot*phi_dot*sin(phi)) + F_theta + F_thrust/m
             diff2_theta = diff2_theta/(r*cos(phi))
 
         end function diff2_theta
@@ -440,7 +445,7 @@ module mod_reentry_calc
             !g     = this%gravity(r)
             
             F_phi     = -(L/m)*sin(delta)*cos(psi) - ((L/m)*cos(delta)*sin(gamma_) + (D/m)*cos(gamma_))*sin(psi)
-            diff2_phi = -(r*omg_e*sin(phi)*cos(phi))*(omg_e + 2*theta_dot) - r_dot*phi_dot + F_phi + F_thrust/m
+            diff2_phi = -2*r_dot*phi_dot - r*sin(phi)*cos(phi)*((theta_dot+omg_e)**2) + F_phi + F_thrust/m
             diff2_phi = diff2_phi/r
 
         end function diff2_phi
@@ -498,8 +503,8 @@ module mod_reentry_calc
             this%results = trj_results(iter_max)
             dt = t(2) - t(1)
 
-            ! print *, i, r-reentry_params%r_earth
-            ! print *, r_dot, r*theta_dot
+            print *, i, r
+            print *, r_dot, r*theta_dot
             do i = 1, iter_max
                 ! call this%add_v(dv_s(i))
                 rho       = this%atmos_density(r - r_earth)
@@ -557,10 +562,14 @@ module mod_reentry_calc
                 this%psi   = atan((r*phi_dot)/(r*theta_dot))
                 this%gamma = atan(r_dot / norm([(r*phi_dot), (r*theta_dot)]))
 
-                ! write(*,"(i7,f15.8,a)", advance="no") i, r-reentry_params%r_earth, achar(z"0d")
-                ! write(*,"(i7,10f15.8)") i, r-reentry_params%r_earth, this%V, F_t(:,i)
+                if ((mod(i, 10) == 0d0) .or. (i == 1)) then
+                    write(*,"(a, 10(g15.8:))", advance="no") achar(z"0d"), dt*i, r-reentry_params%r_earth, r_dot
+                    ! write(*,"(a, 10(g15.8:))", advance="no") achar(z"0a"), dt*i, r-reentry_params%r_earth, r_dot
+                    ! write(*,"(i7,3f15.8)") i, r-reentry_params%r_earth, this%V, F_t(:,i)
+                end if
 
                 if(r <= reentry_params%r_earth) then 
+                    print *, ""
                     print "('r=', f15.3, ' / iter: ', i10)", r, i 
                     print *, "landing."
                     this%results%r_hist         =  this%results%r_hist(:i-1)

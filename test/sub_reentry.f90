@@ -33,6 +33,8 @@ subroutine reentry_from_py(posi, weight, ref_area, initV, gamma, psi, tsize, ts,
     
     gravity = reentry%gravity(reentry%r)
 
+    call reentry%set_r_vec(posi)
+    ! call reentry%set_v_vec(posi)
     reentry%V = initV
     reentry%gamma = gamma 
     reentry%psi = psi
@@ -40,13 +42,13 @@ subroutine reentry_from_py(posi, weight, ref_area, initV, gamma, psi, tsize, ts,
     print *, "----- fortran ------"
     print *, "dt =", dt
     print *, "g = ", gravity, reentry%gravity(6378d0)
-    print *, "C_D = "
-    print *, "posi = ", craft%posi
-    print *, "posi = ", reentry%r_vec
+    ! print *, "posi = ", craft%posi
+    print *, "posi = ", craft_vec
     print *, "R =", reentry%r
+    print *, "V = ", reentry%v
 
     ! call reentry%trj_calc_3d([reentry_params%r_earth+400d0, 0d0, 0d0], ts, F_t, res)
-    call reentry%trj_calc_3d(craft_vec%vec, ts, F_t, res)
+    call reentry%trj_calc_3d([reentry%r, reentry%theta, reentry%phi], ts, F_t, res)
     ! print *, "time:", size(res%r_hist)*dt, "[s]"
 
     allocate(outputs(3, ubound(res%r_hist, dim=1)))
