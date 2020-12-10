@@ -6,10 +6,10 @@ set (EXEC a.out)
 # set (SRCDIR src)
 message(STATUS "CMAKE_SOURCE_DIR=${CMAKE_SOURCE_DIR}")
 
-set(CMAKE_Fortran_FLAGS_DEBUG "-g -fbounds-check -fbacktrace -cpp -D_debug")
+set(CMAKE_Fortran_FLAGS_DEBUG "-g -fbounds-check -fbacktrace -D_debug")
 
 add_compile_options(
-    -O2 -fPIC
+    -O2 -fPIC -cpp 
     )
 
 add_library(reentry_calc STATIC

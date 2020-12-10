@@ -98,6 +98,7 @@ module mod_reentry_calc
         real(real64), allocatable :: V_hist(:)
         real(real64), allocatable :: gamma_hist(:)
         real(real64), allocatable :: psi_hist(:)
+        real(real64), allocatable :: r_dot_hist(:)
         real(real64), allocatable :: theta_dot_hist(:)
         real(real64), allocatable :: phi_dot_hist(:)
     end type
@@ -141,6 +142,7 @@ module mod_reentry_calc
             procedure :: calc_Lift, calc_Drag
             procedure :: diff_r, diff_phi, diff_theta
             procedure :: diff2_r, diff2_theta, diff2_phi
+            procedure :: rtp2v
             procedure :: trj_calc_3d
             generic, public :: add_v => add_v_scalar, add_v_vec
             generic, public :: set_r_vec => set_r_vec_arr, set_r_vec_vector 
@@ -168,6 +170,7 @@ module mod_reentry_calc
             allocate(hist_alloc%V_hist(len))
             allocate(hist_alloc%gamma_hist(len))
             allocate(hist_alloc%psi_hist(len))
+            allocate(hist_alloc%r_dot_hist(len))
             allocate(hist_alloc%theta_dot_hist(len))
             allocate(hist_alloc%phi_dot_hist(len))
 
@@ -273,7 +276,9 @@ module mod_reentry_calc
             v = this%v
 
             ! gamma = 経路角 
+            ! this%gamma = atan(x/norm([y,z]))
             this%gamma = pi/2d0 - acos(rv%dot_product(vv)/(r*v))
+            ! this%gamma = acos(rv%dot_product(vv)/(r*v)) - pi/2d0
 
         end subroutine set_v_vec_arr 
 
@@ -340,12 +345,13 @@ module mod_reentry_calc
 
         real(real64) function diff_theta(this) 
             class(t_ReentryCalc), intent(inout) :: this
-            diff_theta = this%V * cos(this%gamma) * cos(this%psi) / this%r
+            ! diff_theta = this%V * cos(this%gamma) * cos(this%psi) / this%r
+            diff_theta = (this%V * cos(this%gamma) * cos(this%psi)) / (this%r*cos(this%phi))
         end function diff_theta
 
         real(real64) function diff_phi(this) 
             class(t_ReentryCalc), intent(inout) :: this
-            diff_phi = (this%V/this%r) * cos(this%gamma) * sin(this%psi)
+            diff_phi = (this%V) * cos(this%gamma) * sin(this%psi) / this%r
         end function diff_phi
 
         real(real64) function diff2_r(this, dots, F_thrust) 
@@ -361,6 +367,7 @@ module mod_reentry_calc
             is_exist_thrust = (present(F_thrust))
             if(.not. is_exist_thrust) F_thrust = 0d0
 
+            
             r_dot     = dots(1)
             theta_dot = dots(2)
             phi_dot   = dots(3)
@@ -376,7 +383,7 @@ module mod_reentry_calc
             g      = this%gravity(r)
             
             F_r     = (L/m)*cos(delta)*cos(gamma_) - (D/m)*sin(gamma_) + F_thrust/m
-            cosphi2 = cos(phi)**2
+            cosphi2 = (cos(phi))**2
             diff2_r = r*(phi_dot**2 + cosphi2*(theta_dot + omg_e)**2) + F_r - g
 
         end function diff2_r
@@ -394,6 +401,7 @@ module mod_reentry_calc
             is_exist_thrust = (present(F_thrust))
             if(is_exist_thrust .eqv. .false.) F_thrust = 0d0
 
+            
             r_dot     = dots(1)
             theta_dot = dots(2)
             phi_dot   = dots(3)
@@ -450,11 +458,26 @@ module mod_reentry_calc
 
         end function diff2_phi
 
+        real(real64) function rtp2v(this, dots)
+            class(t_ReentryCalc), target, intent(inout) :: this
+            real(real64), intent(in) :: dots(3)
+            real(real64) r_dot, theta_dot, phi_dot
+            real(real64) r, theta, phi
+            r         = this%r 
+            phi       = this%phi
+            r_dot     = dots(1)
+            theta_dot = dots(2)
+            phi_dot   = dots(3)
+
+            rtp2v = norm([r_dot, r*cos(phi)*theta_dot, r*phi_dot])
+
+        end function
+
         subroutine trj_calc_3d(this, x0, t, F_t, res)
             class(t_ReentryCalc), target, intent(inout) :: this
             real(real64), intent(in) :: x0(3), t(:)
             ! real(real64), intent(in) :: dv_s(:)
-            real(real64), intent(in) :: F_t(:, :)
+            real(real64), intent(in) :: F_t(:)
             type(trj_results), intent(out) :: res
             real(real64) r0, theta0, phi0
             real(real64) r, theta, phi
@@ -464,7 +487,7 @@ module mod_reentry_calc
             integer iter_max, i
             real(real64) dt
             real(real64) dummy
-            real(real64) F(3)
+            real(real64) F
             real(real64), allocatable :: F_t2(:, :)
             ! type(t_Vector) k(4), l(4)
             real(real64) r_k(4), theta_k(4), phi_k(4)
@@ -493,18 +516,15 @@ module mod_reentry_calc
             rho = this%atmos_density(r0 - r_earth)
 
             iter_max = size(t)
-            ! allocate(F_t2(3, iter_max), source=0d0)
+            allocate(F_t2(3, iter_max), source=0d0)
             ! F_t2 = F_t
             ! F = [-1.0d-3, 0.0d0, 0.0d0]
-            ! F_t2(1,:) = F(1)
-            ! F_t2(2,:) = F(2)/this%r
-            ! F_t2(3,:) = F(3)/this%r
             
             this%results = trj_results(iter_max)
             dt = t(2) - t(1)
 
-            print *, i, r
-            print *, r_dot, r*theta_dot
+            ! print *, i, r
+            ! print *, r_dot, r*theta_dot
             do i = 1, iter_max
                 ! call this%add_v(dv_s(i))
                 rho       = this%atmos_density(r - r_earth)
@@ -513,38 +533,49 @@ module mod_reentry_calc
                 r_dot     = this%diff_r()
                 theta_dot = this%diff_theta()
                 phi_dot   = this%diff_phi()
+
+                ! F = norm(F_t(:,i))
+                F = F_t(i)
+                F_t2(1,i) = F*sin(this%gamma)
+                F_t2(2,i) = F*cos(this%gamma)*cos(this%psi)
+                F_t2(3,i) = F*cos(this%gamma)*sin(this%psi)
+                ! print *,(this%gamma), r_dot, F_t2(:,i)
                 
                 dots       = [r_dot, theta_dot, phi_dot]
+                this%V     = this%rtp2v(dots)
                 r_k(1)     = r_dot 
                 theta_k(1) = theta_dot 
                 phi_k(1)   = phi_dot 
-                r_l(1)     = this%diff2_r(dots, F_t(1,i))
-                theta_l(1) = this%diff2_theta(dots, F_t(2,i))
-                phi_l(1)   = this%diff2_phi(dots, F_t(3,i))
+                r_l(1)     = this%diff2_r(dots, F_t2(1,i))
+                theta_l(1) = this%diff2_theta(dots, F_t2(2,i))
+                phi_l(1)   = this%diff2_phi(dots, F_t2(3,i))
 
-                dots       = [r_dot+(r_k(1)/2d0), theta_dot+(theta_k(1)/2d0), phi_dot+(phi_k(1)/2d0)]
+                dots       = [r_dot+(r_l(1)/2d0), theta_dot+(theta_l(1)/2d0), phi_dot+(phi_l(1)/2d0)]
+                this%V     = this%rtp2v(dots)
                 r_k(2)     = r_dot     + r_l(1)/2d0
                 theta_k(2) = theta_dot + theta_l(1)/2d0
                 phi_k(2)   = phi_dot   + phi_l(1)/2d0
-                r_l(2)     = this%diff2_r(dots, F_t(1,i))
-                theta_l(2) = this%diff2_theta(dots, F_t(2,i))
-                phi_l(2)   = this%diff2_phi(dots, F_t(3,i))
+                r_l(2)     = this%diff2_r(dots, F_t2(1,i))
+                theta_l(2) = this%diff2_theta(dots, F_t2(2,i))
+                phi_l(2)   = this%diff2_phi(dots, F_t2(3,i))
 
-                dots       = [r_dot+(r_k(2)/2d0), theta_dot+(theta_k(2)/2d0), phi_dot+(phi_k(2)/2d0)]
+                dots       = [r_dot+(r_l(2)/2d0), theta_dot+(theta_l(2)/2d0), phi_dot+(phi_l(2)/2d0)]
+                this%V     = this%rtp2v(dots)
                 r_k(3)     = r_dot     + r_l(2)/2d0
                 theta_k(3) = theta_dot + theta_l(2)/2d0
                 phi_k(3)   = phi_dot   + phi_l(2)/2d0
-                r_l(3)     = this%diff2_r(dots, F_t(1,i))
-                theta_l(3) = this%diff2_theta(dots, F_t(2,i))
-                phi_l(3)   = this%diff2_phi(dots, F_t(3,i))
+                r_l(3)     = this%diff2_r(dots, F_t2(1,i))
+                theta_l(3) = this%diff2_theta(dots, F_t2(2,i))
+                phi_l(3)   = this%diff2_phi(dots, F_t2(3,i))
 
-                dots       = [r_dot+r_k(3), theta_dot+theta_k(3), phi_dot+phi_k(3)]
+                dots       = [r_dot+r_l(3), theta_dot+theta_l(3), phi_dot+phi_l(3)]
+                this%V     = this%rtp2v(dots)
                 r_k(4)     = r_dot     + r_l(3)
                 theta_k(4) = theta_dot + theta_l(3)
                 phi_k(4)   = phi_dot   + phi_l(3)
-                r_l(4)     = this%diff2_r(dots, F_t(1,i))
-                theta_l(4) = this%diff2_theta(dots, F_t(2,i))
-                phi_l(4)   = this%diff2_phi(dots, F_t(3,i))
+                r_l(4)     = this%diff2_r(dots, F_t2(1,i))
+                theta_l(4) = this%diff2_theta(dots, F_t2(2,i))
+                phi_l(4)   = this%diff2_phi(dots, F_t2(3,i))
 
                 r         = r     + dt*(r_k(1) + 2d0*r_k(2) + 2d0*r_k(3) + r_k(4))/6d0
                 theta     = theta + dt*(theta_k(1) + 2d0*theta_k(2) + 2d0*theta_k(3) + theta_k(4))/6d0
@@ -556,17 +587,19 @@ module mod_reentry_calc
                 this%r     = r
                 this%theta = theta
                 this%phi   = phi
-                call this%set_v_vec([r_dot, r*theta_dot, r*phi_dot])
+                call this%set_v_vec([r_dot, r*theta_dot*cos(this%phi), r*phi_dot])
                 ! this%V = norm([r_dot, r*theta_dot, r*phi_dot])
                 ! this%V = norm(this%V_vec)
-                this%psi   = atan((r*phi_dot)/(r*theta_dot))
-                this%gamma = atan(r_dot / norm([(r*phi_dot), (r*theta_dot)]))
+                this%psi   = atan((r*phi_dot)/(r*theta_dot*cos(this%phi)))
+                this%gamma = atan(r_dot / norm([r*phi_dot, r*theta_dot*cos(this%phi)]))
 
+#ifdef _debug
                 if ((mod(i, 10) == 0d0) .or. (i == 1)) then
                     write(*,"(a, 10(g15.8:))", advance="no") achar(z"0d"), dt*i, r-reentry_params%r_earth, r_dot
                     ! write(*,"(a, 10(g15.8:))", advance="no") achar(z"0a"), dt*i, r-reentry_params%r_earth, r_dot
                     ! write(*,"(i7,3f15.8)") i, r-reentry_params%r_earth, this%V, F_t(:,i)
                 end if
+#endif
 
                 if(r <= reentry_params%r_earth) then 
                     print *, ""
@@ -579,6 +612,7 @@ module mod_reentry_calc
                     this%results%gamma_hist     =  this%results%gamma_hist(:i-1)
                     this%results%psi_hist       =  this%results%psi_hist(:i-1)
                     this%results%rho_hist       =  this%results%rho_hist(:i-1)
+                    this%results%r_dot_hist     =  this%results%r_dot_hist(:i-1)
                     this%results%theta_dot_hist =  this%results%theta_dot_hist(:i-1)
                     this%results%phi_dot_hist   =  this%results%phi_dot_hist(:i-1)
                     exit
@@ -591,6 +625,7 @@ module mod_reentry_calc
                 this%results%gamma_hist(i)     = this%gamma 
                 this%results%psi_hist(i)       = this%psi 
                 this%results%rho_hist(i)       = rho 
+                this%results%r_dot_hist(i)     = r_dot
                 this%results%theta_dot_hist(i) = theta_dot
                 this%results%phi_dot_hist(i)   = phi_dot
 

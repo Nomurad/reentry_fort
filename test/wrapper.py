@@ -72,11 +72,14 @@ def call_reentry(posi, weight, ref_area, initV, gamma, psi, len_t, ts, F_t):
 
 if __name__ == "__main__":
     import pandas as pd
+    import matplotlib.pyplot as plt
+    import numpy as np
+    from numpy import sin, cos
+    from reentry_py.calcutil import rad2deg, deg2rad
     from reentry_py import sattelite_trj_calc as sat
     from reentry_py.calc_all_range import vel_eci2ecef
     from reentry_py import calcutil as util
 
-    tsize = 10**7
     # n = 3
     # A = np.array([[1,2,3],[4,5,6],[7,8,9]], dtype=np.float64)
     # f = FortranFile("input.dat", "w")
@@ -87,6 +90,8 @@ if __name__ == "__main__":
     # print(A)
 
     # B = call_fort(n, (A))
+
+    # tsize = 10**6
 
     deb    = sat.trj_calc_fromTLE(sat.l1, sat.l2)
     pos    =  []
@@ -103,7 +108,7 @@ if __name__ == "__main__":
 
     # posi  = np.array([-6637.45552308, 1418.74612805, 7.33199191])
     posi  = r0.copy()
-    wei   = 100.0
+    wei   = 1000.0
     ref   = np.pi
     iniR  = np.linalg.norm(posi)
     iniV  = np.linalg.norm(v0)
@@ -118,10 +123,11 @@ if __name__ == "__main__":
     psi   = deb.inc
     dt    = 1e-2
     ts    = np.arange(dt*tsize, step=dt)
-    F_t   = np.zeros((tsize, 3))
-    F_t[:,0] = -0.001
-    F_t[:,1] = -0.01
+    F_t   = np.zeros((tsize))
+    # F_t[:] = -10.0
+    # F_t[:,1] = -0.01
     # print(F_t)
+    # gamma = -0.0
     
     sttime = time.time()
     res = call_reentry(posi, wei, ref, iniV, gamma, psi, tsize, ts, F_t)
@@ -140,12 +146,95 @@ if __name__ == "__main__":
     sttime = time.time()
     f = FortranFile("trj_calc_rslt.dat",  "r")
     datsize = 0
-    dat = f.read_record(f"3f8")
+    dat = f.read_record(f"11f8")
     f.close()
-    pd.DataFrame(dat).to_csv("result.csv")
-    print("initial r = ", iniR)
+    print("landing time[s]: ", dat[-1, 0])
+    # pd.DataFrame(dat).to_csv("result.csv")
+    # print("initial r = ", iniR)
     print("last r = ",dat[-1,1] )
     print("read time: ",time.time()-sttime)
-    print("landing time[s]: ", dat[-1, 0])
+
+
+       ########## save ##########
+    t_s = dat[:,0]
+    r_s = dat[:,1]
+    theta_s = dat[:,2]
+    phi_s = dat[:,3]
+    gamma_s = (dat[:,6])
+    v_s = dat[:,5]
+    r_dot_s = dat[:,8]
+    theta_dot_s = r_s*(dat[:,9])
+    phi_dot_s = r_s*(dat[:,10])
+    ### set path
+    # if not os.path.exists("result"):
+    #     os.makedirs("result")
+    pos_array2 = []
+    for r, theta, phi in zip(r_s, theta_s, phi_s) :
+        x = r*cos(theta)*cos(phi)
+        y = r*sin(theta)*cos(phi)
+        z = r*sin(phi)
+        position = [x, y, z]
+        pos_array2.append(position)
+    pos_array2 = np.array(pos_array2)
+    print(F_t)
 
     
+    # savedata = {
+    #     "pos_1st_stage": pos_1st_stage,
+    #     "pos_2nd_stage": pos_2nd_stage,
+    #     "r_s": r_s,
+    #     "theta_s": theta_s,
+    #     "phi_s": phi_s
+    # }
+
+    # for data_key, data in savedata.items():
+    #     fname = f"result_reentry_{data_key}.csv"
+    #     result_path = os.path.join("result", fname)
+    #     np.savetxt(result_path, data, delimiter=",")
+
+    ########## Visualize ##########
+    # plot graph
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection="3d")
+
+    # earth & trajectory
+    r_earth = 6378.0 # set semi-axis
+    r = 6378.0 # set semi-axis
+    theta_1_0 = np.linspace(0, 2*np.pi, 100) 
+    theta_2_0 = np.linspace(0, 2*np.pi, 100) 
+    theta_1, theta_2 = np.meshgrid(theta_1_0, theta_2_0) # convert to 2-dim array
+    x = np.cos(theta_2)*np.sin(theta_1) * r 
+    y = np.sin(theta_2)*np.sin(theta_1) * r 
+    z = np.cos(theta_1) * r 
+    ax.plot_surface(x,y,z, alpha=0.3)  #plot earth
+
+    pos_2nd_stage = (pos_array2)
+    ax.scatter(pos_2nd_stage[:,0], pos_2nd_stage[:,1], pos_2nd_stage[:,2],
+               c="red", s=2)
+    plt.gca().set_aspect(aspect="auto")
+    fig.tight_layout()
+
+    # 2D trajectory
+    alpha = np.sqrt(theta_s**2 + phi_s**2)
+    downrange = (alpha - alpha[0])*r_earth
+    # print(downrange)
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.set_title("2D trajectory")
+    ax.scatter(downrange, r_s - r_earth)
+    ax.set_xlabel("downrange [km]")
+    ax.set_ylabel("Height [km]")
+    ax.set_ylim(0, ax.get_ylim()[-1])
+    fig.tight_layout()
+
+    # fig = plt.figure()
+    # plt.scatter(t_s, r_dot_s)
+    # fig = plt.figure()
+    # plt.scatter(t_s, rad2deg(gamma_s))
+    print(gamma_s)
+    # plt.scatter(t_s, r_dot_s)
+    # plt.scatter(t_s, np.sqrt(theta_dot_s**2+phi_dot_s**2))
+
+
+    plt.show()
