@@ -277,8 +277,9 @@ module mod_reentry_calc
 
             ! gamma = 経路角 
             ! this%gamma = atan(x/norm([y,z]))
-            this%gamma = pi/2d0 - acos(rv%dot_product(vv)/(r*v))
+            ! this%gamma = (pi/2d0 - acos(rv%dot_product(vv)/(r*v)))
             ! this%gamma = acos(rv%dot_product(vv)/(r*v)) - pi/2d0
+            this%gamma = -atan2(x, norm([y, z]))
 
         end subroutine set_v_vec_arr 
 
@@ -400,7 +401,6 @@ module mod_reentry_calc
 
             is_exist_thrust = (present(F_thrust))
             if(is_exist_thrust .eqv. .false.) F_thrust = 0d0
-
             
             r_dot     = dots(1)
             theta_dot = dots(2)
@@ -513,7 +513,8 @@ module mod_reentry_calc
             phi_dot    = this%diff_phi()
 
             r_earth = reentry_params%r_earth
-            rho = this%atmos_density(r0 - r_earth)
+            ! rho = this%atmos_density(r0 - r_earth)
+            this%V  = this%rtp2v([r_dot, theta_dot, phi_dot])
 
             iter_max = size(t)
             allocate(F_t2(3, iter_max), source=0d0)
@@ -537,6 +538,7 @@ module mod_reentry_calc
                 ! F = norm(F_t(:,i))
                 F = F_t(i)
                 F_t2(1,i) = F*sin(this%gamma)
+                ! F_t2(1,i) = 0d0
                 F_t2(2,i) = F*cos(this%gamma)*cos(this%psi)
                 F_t2(3,i) = F*cos(this%gamma)*sin(this%psi)
                 ! print *,(this%gamma), r_dot, F_t2(:,i)
@@ -552,6 +554,7 @@ module mod_reentry_calc
 
                 dots       = [r_dot+(r_l(1)/2d0), theta_dot+(theta_l(1)/2d0), phi_dot+(phi_l(1)/2d0)]
                 this%V     = this%rtp2v(dots)
+                ! this%gamma = atan2(dots(1), norm([dots(2)*r*cos(phi), dots(2)*r]))
                 r_k(2)     = r_dot     + r_l(1)/2d0
                 theta_k(2) = theta_dot + theta_l(1)/2d0
                 phi_k(2)   = phi_dot   + phi_l(1)/2d0
@@ -561,6 +564,7 @@ module mod_reentry_calc
 
                 dots       = [r_dot+(r_l(2)/2d0), theta_dot+(theta_l(2)/2d0), phi_dot+(phi_l(2)/2d0)]
                 this%V     = this%rtp2v(dots)
+                ! this%gamma = atan2(dots(1), norm([dots(2)*r*cos(phi), dots(2)*r]))
                 r_k(3)     = r_dot     + r_l(2)/2d0
                 theta_k(3) = theta_dot + theta_l(2)/2d0
                 phi_k(3)   = phi_dot   + phi_l(2)/2d0
@@ -570,6 +574,7 @@ module mod_reentry_calc
 
                 dots       = [r_dot+r_l(3), theta_dot+theta_l(3), phi_dot+phi_l(3)]
                 this%V     = this%rtp2v(dots)
+                ! this%gamma = atan2(dots(1), norm([dots(2)*r*cos(phi), dots(2)*r]))
                 r_k(4)     = r_dot     + r_l(3)
                 theta_k(4) = theta_dot + theta_l(3)
                 phi_k(4)   = phi_dot   + phi_l(3)
@@ -587,11 +592,11 @@ module mod_reentry_calc
                 this%r     = r
                 this%theta = theta
                 this%phi   = phi
-                call this%set_v_vec([r_dot, r*theta_dot*cos(this%phi), r*phi_dot])
-                ! this%V = norm([r_dot, r*theta_dot, r*phi_dot])
-                ! this%V = norm(this%V_vec)
-                this%psi   = atan((r*phi_dot)/(r*theta_dot*cos(this%phi)))
-                this%gamma = atan(r_dot / norm([r*phi_dot, r*theta_dot*cos(this%phi)]))
+                call this%set_v_vec([r_dot, r*theta_dot*cos(phi), r*phi_dot])
+                ! this%psi   = atan((r*phi_dot)/(r*theta_dot*cos(this%phi)))
+                this%psi   = atan2((r*phi_dot), (r*theta_dot*cos(phi)))
+                this%gamma = -atan2(r_dot, norm([r*phi_dot, r*theta_dot*cos(phi)]))
+                ! if (theta_dot <= 0d0) theta_dot = 0d0
 
 #ifdef _debug
                 if ((mod(i, 10) == 0d0) .or. (i == 1)) then

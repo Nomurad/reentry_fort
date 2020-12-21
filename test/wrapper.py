@@ -5,7 +5,7 @@ import astropy.time as att
 from scipy.io import FortranFile
 
 libname = "libfort.so"
-tsize = 300000
+tsize = 700000
 
 def call_fort(n, A: np.ndarray):
     # コメント
@@ -121,10 +121,11 @@ if __name__ == "__main__":
     print("gamma=",util.rad2deg(gamma))
     # input()
     psi   = deb.inc
-    dt    = 1e-2
+    dt    = 1e-1
     ts    = np.arange(dt*tsize, step=dt)
     F_t   = np.zeros((tsize))
-    # F_t[:] = -10.0
+    F_t[:100000] = -0.8
+    # F_t[10000:] = -1.0
     # F_t[:,1] = -0.01
     # print(F_t)
     # gamma = -0.0
@@ -193,11 +194,11 @@ if __name__ == "__main__":
     #     np.savetxt(result_path, data, delimiter=",")
 
     ########## Visualize ##########
-    # plot graph
+    # # plot graph
     fig = plt.figure()
     ax = fig.add_subplot(111, projection="3d")
 
-    # earth & trajectory
+    # # earth & trajectory
     r_earth = 6378.0 # set semi-axis
     r = 6378.0 # set semi-axis
     theta_1_0 = np.linspace(0, 2*np.pi, 100) 
@@ -228,10 +229,12 @@ if __name__ == "__main__":
     ax.set_ylim(0, ax.get_ylim()[-1])
     fig.tight_layout()
 
+    fig = plt.figure()
+    plt.scatter(t_s, theta_dot_s)
     # fig = plt.figure()
-    # plt.scatter(t_s, r_dot_s)
-    # fig = plt.figure()
-    # plt.scatter(t_s, rad2deg(gamma_s))
+    # alpha = np.sqrt((r_earth*cos(phi_s)*theta_s)**2 + (r_earth*phi_s)**2)
+    plt.scatter(t_s, phi_dot_s)
+    plt.scatter(t_s, rad2deg(gamma_s))
     print(gamma_s)
     # plt.scatter(t_s, r_dot_s)
     # plt.scatter(t_s, np.sqrt(theta_dot_s**2+phi_dot_s**2))
