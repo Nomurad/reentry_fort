@@ -277,9 +277,9 @@ module mod_reentry_calc
 
             ! gamma = 経路角 
             ! this%gamma = atan(x/norm([y,z]))
+            this%gamma = atan2(x, norm([y, z]))
             ! this%gamma = (pi/2d0 - acos(rv%dot_product(vv)/(r*v)))
             ! this%gamma = acos(rv%dot_product(vv)/(r*v)) - pi/2d0
-            this%gamma = -atan2(x, norm([y, z]))
 
         end subroutine set_v_vec_arr 
 
@@ -378,12 +378,12 @@ module mod_reentry_calc
             L      = this%Lift
             D      = this%Drag
             m      = this%craft%weight
-            gamma_ = this%gamma
+            gamma_ = (this%gamma)
             delta  = this%delta
             omg_e  = reentry_params%omg_e
             g      = this%gravity(r)
             
-            F_r     = (L/m)*cos(delta)*cos(gamma_) - (D/m)*sin(gamma_) + F_thrust/m
+            F_r     = (L*cos(delta)*cos(gamma_) - D*sin(gamma_) + F_thrust)/m
             cosphi2 = (cos(phi))**2
             diff2_r = r*(phi_dot**2 + cosphi2*(theta_dot + omg_e)**2) + F_r - g
 
@@ -477,9 +477,10 @@ module mod_reentry_calc
             class(t_ReentryCalc), target, intent(inout) :: this
             real(real64), intent(in) :: x0(3), t(:)
             ! real(real64), intent(in) :: dv_s(:)
-            real(real64), intent(in) :: F_t(:)
+            real(real64), intent(in) :: F_t(:,:)
+            ! real(real64), intent(in) :: F_t(:)
             type(trj_results), intent(out) :: res
-            real(real64) r0, theta0, phi0
+            real(real64) r0, theta0, phi0, coeff
             real(real64) r, theta, phi
             real(real64) r_dot, theta_dot, phi_dot
             real(real64) dots(3)
@@ -511,6 +512,7 @@ module mod_reentry_calc
             r_dot      = this%diff_r()
             theta_dot  = this%diff_theta()
             phi_dot    = this%diff_phi()
+            print * , r_dot, norm([r*cos(this%gamma)*theta_dot, r*phi_dot])
 
             r_earth = reentry_params%r_earth
             ! rho = this%atmos_density(r0 - r_earth)
@@ -536,11 +538,13 @@ module mod_reentry_calc
                 phi_dot   = this%diff_phi()
 
                 ! F = norm(F_t(:,i))
-                F = F_t(i)
-                F_t2(1,i) = F*sin(this%gamma)
-                ! F_t2(1,i) = 0d0
-                F_t2(2,i) = F*cos(this%gamma)*cos(this%psi)
-                F_t2(3,i) = F*cos(this%gamma)*sin(this%psi)
+                ! F = F_t(i)
+                !F_t2(1,i) = F*sin(this%gamma)
+                !F_t2(2,i) = F*cos(this%gamma)*cos(this%psi)
+                !F_t2(3,i) = F*cos(this%gamma)*sin(this%psi)
+                F_t2(1,i) = F_t(1,i)
+                F_t2(2,i) = F_t(2,i)
+                F_t2(3,i) = F_t(3,i)
                 ! print *,(this%gamma), r_dot, F_t2(:,i)
                 
                 dots       = [r_dot, theta_dot, phi_dot]
@@ -553,7 +557,7 @@ module mod_reentry_calc
                 phi_l(1)   = this%diff2_phi(dots, F_t2(3,i))
 
                 dots       = [r_dot+(r_l(1)/2d0), theta_dot+(theta_l(1)/2d0), phi_dot+(phi_l(1)/2d0)]
-                this%V     = this%rtp2v(dots)
+                ! this%V     = this%rtp2v(dots)
                 ! this%gamma = atan2(dots(1), norm([dots(2)*r*cos(phi), dots(2)*r]))
                 r_k(2)     = r_dot     + r_l(1)/2d0
                 theta_k(2) = theta_dot + theta_l(1)/2d0
@@ -563,7 +567,7 @@ module mod_reentry_calc
                 phi_l(2)   = this%diff2_phi(dots, F_t2(3,i))
 
                 dots       = [r_dot+(r_l(2)/2d0), theta_dot+(theta_l(2)/2d0), phi_dot+(phi_l(2)/2d0)]
-                this%V     = this%rtp2v(dots)
+                ! this%V     = this%rtp2v(dots)
                 ! this%gamma = atan2(dots(1), norm([dots(2)*r*cos(phi), dots(2)*r]))
                 r_k(3)     = r_dot     + r_l(2)/2d0
                 theta_k(3) = theta_dot + theta_l(2)/2d0
@@ -573,7 +577,7 @@ module mod_reentry_calc
                 phi_l(3)   = this%diff2_phi(dots, F_t2(3,i))
 
                 dots       = [r_dot+r_l(3), theta_dot+theta_l(3), phi_dot+phi_l(3)]
-                this%V     = this%rtp2v(dots)
+                ! this%V     = this%rtp2v(dots)
                 ! this%gamma = atan2(dots(1), norm([dots(2)*r*cos(phi), dots(2)*r]))
                 r_k(4)     = r_dot     + r_l(3)
                 theta_k(4) = theta_dot + theta_l(3)
@@ -593,9 +597,15 @@ module mod_reentry_calc
                 this%theta = theta
                 this%phi   = phi
                 call this%set_v_vec([r_dot, r*theta_dot*cos(phi), r*phi_dot])
-                ! this%psi   = atan((r*phi_dot)/(r*theta_dot*cos(this%phi)))
+                ! coeff = r_dot/(abs(r_dot))
+                coeff = -1d0
+                if (r_dot > 0d0) then
+                    coeff = 1d0
+                end if
                 this%psi   = atan2((r*phi_dot), (r*theta_dot*cos(phi)))
-                this%gamma = -atan2(r_dot, norm([r*phi_dot, r*theta_dot*cos(phi)]))
+                ! write(*,*) r_dot, norm([r*phi_dot, r*theta_dot*cos(phi)])
+                this%gamma = coeff*abs(atan2(r_dot, norm([r*phi_dot, r*theta_dot*cos(phi)])))
+                ! this%psi   = atan((r*phi_dot)/(r*theta_dot*cos(this%phi)))
                 ! if (theta_dot <= 0d0) theta_dot = 0d0
 
 #ifdef _debug
@@ -605,23 +615,6 @@ module mod_reentry_calc
                     ! write(*,"(i7,3f15.8)") i, r-reentry_params%r_earth, this%V, F_t(:,i)
                 end if
 #endif
-
-                if(r <= reentry_params%r_earth) then 
-                    print *, ""
-                    print "('r=', f15.3, ' / iter: ', i10)", r, i 
-                    print *, "landing."
-                    this%results%r_hist         =  this%results%r_hist(:i-1)
-                    this%results%theta_hist     =  this%results%theta_hist(:i-1)
-                    this%results%phi_hist       =  this%results%phi_hist(:i-1)
-                    this%results%V_hist         =  this%results%V_hist(:i-1)
-                    this%results%gamma_hist     =  this%results%gamma_hist(:i-1)
-                    this%results%psi_hist       =  this%results%psi_hist(:i-1)
-                    this%results%rho_hist       =  this%results%rho_hist(:i-1)
-                    this%results%r_dot_hist     =  this%results%r_dot_hist(:i-1)
-                    this%results%theta_dot_hist =  this%results%theta_dot_hist(:i-1)
-                    this%results%phi_dot_hist   =  this%results%phi_dot_hist(:i-1)
-                    exit
-                end if
 
                 this%results%r_hist(i)         = r 
                 this%results%theta_hist(i)     = theta 
@@ -633,6 +626,23 @@ module mod_reentry_calc
                 this%results%r_dot_hist(i)     = r_dot
                 this%results%theta_dot_hist(i) = theta_dot
                 this%results%phi_dot_hist(i)   = phi_dot
+
+                if(r <= reentry_params%r_earth) then 
+                    print *, ""
+                    print "('r=', f15.3, ' / iter: ', i10)", r, i 
+                    print *, "landing."
+                    this%results%r_hist         =  this%results%r_hist(:i)
+                    this%results%theta_hist     =  this%results%theta_hist(:i)
+                    this%results%phi_hist       =  this%results%phi_hist(:i)
+                    this%results%V_hist         =  this%results%V_hist(:i)
+                    this%results%gamma_hist     =  this%results%gamma_hist(:i)
+                    this%results%psi_hist       =  this%results%psi_hist(:i)
+                    this%results%rho_hist       =  this%results%rho_hist(:i)
+                    this%results%r_dot_hist     =  this%results%r_dot_hist(:i)
+                    this%results%theta_dot_hist =  this%results%theta_dot_hist(:i)
+                    this%results%phi_dot_hist   =  this%results%phi_dot_hist(:i)
+                    exit
+                end if
 
             end do
             if(i >= iter_max) print *, "landing failed..."

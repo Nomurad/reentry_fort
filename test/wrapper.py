@@ -5,7 +5,7 @@ import astropy.time as att
 from scipy.io import FortranFile
 
 libname = "libfort.so"
-tsize = 700000
+tsize = 2000000
 
 def call_fort(n, A: np.ndarray):
     # コメント
@@ -121,10 +121,10 @@ if __name__ == "__main__":
     print("gamma=",util.rad2deg(gamma))
     # input()
     psi   = deb.inc
-    dt    = 1e-1
+    dt    = 2e-2
     ts    = np.arange(dt*tsize, step=dt)
-    F_t   = np.zeros((tsize))
-    F_t[:100000] = -0.8
+    F_t   = np.zeros((3,tsize))
+    # F_t[0,:100000] = -0.8
     # F_t[10000:] = -1.0
     # F_t[:,1] = -0.01
     # print(F_t)
@@ -195,6 +195,7 @@ if __name__ == "__main__":
 
     ########## Visualize ##########
     # # plot graph
+    skips = 1000
     fig = plt.figure()
     ax = fig.add_subplot(111, projection="3d")
 
@@ -209,7 +210,7 @@ if __name__ == "__main__":
     z = np.cos(theta_1) * r 
     ax.plot_surface(x,y,z, alpha=0.3)  #plot earth
 
-    pos_2nd_stage = (pos_array2)
+    pos_2nd_stage = (pos_array2[::skips])
     ax.scatter(pos_2nd_stage[:,0], pos_2nd_stage[:,1], pos_2nd_stage[:,2],
                c="red", s=2)
     plt.gca().set_aspect(aspect="auto")
@@ -218,23 +219,26 @@ if __name__ == "__main__":
     # 2D trajectory
     alpha = np.sqrt(theta_s**2 + phi_s**2)
     downrange = (alpha - alpha[0])*r_earth
+    downrange = downrange[::skips]
+    h_s = (r_s - r_earth)[::skips]
     # print(downrange)
 
     fig = plt.figure()
     ax = fig.add_subplot(111)
     ax.set_title("2D trajectory")
-    ax.scatter(downrange, r_s - r_earth)
+    ax.scatter(downrange, h_s)
     ax.set_xlabel("downrange [km]")
     ax.set_ylabel("Height [km]")
     ax.set_ylim(0, ax.get_ylim()[-1])
     fig.tight_layout()
 
     fig = plt.figure()
-    plt.scatter(t_s, theta_dot_s)
+    t_s = t_s[::skips]
+    plt.scatter(t_s, theta_dot_s[::skips])
     # fig = plt.figure()
     # alpha = np.sqrt((r_earth*cos(phi_s)*theta_s)**2 + (r_earth*phi_s)**2)
-    plt.scatter(t_s, phi_dot_s)
-    plt.scatter(t_s, rad2deg(gamma_s))
+    plt.scatter(t_s, phi_dot_s[::skips])
+    plt.scatter(t_s, rad2deg(gamma_s[::skips]))
     print(gamma_s)
     # plt.scatter(t_s, r_dot_s)
     # plt.scatter(t_s, np.sqrt(theta_dot_s**2+phi_dot_s**2))

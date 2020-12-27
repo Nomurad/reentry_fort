@@ -11,8 +11,8 @@ subroutine reentry_from_py(posi, weight, ref_area, initV, gamma, psi, tsize, ts,
     real(real64), intent(in) :: gamma, psi
     integer(c_int), intent(in) :: tsize
     real(real64), intent(in) :: ts(tsize)
-    ! real(real64), intent(in) :: F_t(3,tsize)
-    real(real64), intent(in) :: F_t(tsize)
+    real(real64), intent(in) :: F_t(3,tsize)
+    ! real(real64), intent(in) :: F_t(tsize)
     ! real(real64), intent(inout) :: ress
     ! type(trj_results), intent(inout) :: res
     type(trj_results) res
@@ -25,7 +25,6 @@ subroutine reentry_from_py(posi, weight, ref_area, initV, gamma, psi, tsize, ts,
     integer i
     real(real64) gravity
 
-    print *, "start calc!"
     ! ress = 1d0
     craft_vec = t_Vector(3)
     craft_vec%vec = posi

@@ -14,8 +14,8 @@ program debug
     integer, parameter :: tsize = 10000000
     real(real64) ts(tsize)
     real(real64) dv_s(tsize)
-    ! real(real64) F_t(3, tsize)
-    real(real64) F_t(tsize)
+    real(real64) F_t(3, tsize)
+    ! real(real64) F_t(tsize)
     real(real64) :: t = 1d-4
     type(trj_results) res
 
@@ -37,7 +37,7 @@ program debug
     print *, "V = ", reentry%V
     forall(i=1:tsize) ts(i) = t*i
     dv_s = 0d0
-    F_t(:) = -1d-3   ! F
+    ! F_t(:) = -1d-3   ! F
 
     ! call reentry%trj_calc_3d([reentry_params%r_earth + 120d0, 0d0, 0d0], ts, F_t, res)
     call reentry%trj_calc_3d([reentry_params%r_earth + 400d0, 0d0, 0d0], ts, F_t, res)
@@ -50,7 +50,7 @@ program debug
     open(newunit=nunit, file="trj.csv", iostat=ios, iomsg=img)
     write(nunit, "(4(a,','), a)") "r_hist", "t", "fr", "ftheta", "fphi"  ! header
     do i = 1, ubound(res%r_hist, dim=1)
-        write(nunit, "(4(f12.7,','), f12.7)") res%r_hist(i), ts(i), F_t(i)
+        write(nunit, "(4(f12.7,','), f12.7)") res%r_hist(i), ts(i), F_t(:,i)
     end do
 
 end program
